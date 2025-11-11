@@ -1,0 +1,82 @@
+# LEMM Configuration File
+# Version: 0.1.0
+
+server:
+  host: "0.0.0.0"
+  port: 7860
+  share: false
+  debug: false
+
+audio:
+  sample_rate: 44100
+  clip_duration: 32  # seconds
+  lead_in_duration: 2  # seconds
+  lead_out_duration: 2  # seconds
+  main_duration: 28  # seconds
+  crossfade_duration: 2  # seconds
+
+models:
+  ace_step:
+    # ACE-Step model configuration
+    path: "models/ACE-Step-HF"  # Local model path
+    device: "cuda"  # or "cpu"
+    device_id: 0  # GPU device ID
+    bf16: true  # Use bfloat16 for faster inference (requires CUDA)
+    torch_compile: false  # Use torch.compile() for optimization (slower startup)
+    cpu_offload: false  # Offload weights to CPU to save VRAM
+    overlapped_decode: false  # Use overlapped decoding for speed
+    num_inference_steps: 27  # 27 for fast, 60 for quality
+    guidance_scale: 7.5
+    max_duration: 60  # seconds per generation
+    use_local: true  # Use local downloaded model
+  
+  song_composer:
+    path: "models/song_composer"  # Not yet available
+    device: "cuda"
+    enabled: false
+  
+  music_control_net:
+    path: "models/music_control_net"  # Not yet available
+    device: "cuda"
+    enabled: false
+  
+  demucs:
+    model: "htdemucs"  # or "htdemucs_ft" for fine-tuned
+    device: "cuda"
+    shifts: 1  # Number of random shifts for better separation
+    split: true  # Split audio for lower memory usage
+    overlap: 0.25
+  
+  so_vits_svc:
+    path: "models/sovits"
+    device: "cuda"
+    config_path: "models/sovits/config.json"  # Will be created
+    hubert_path: "models/sovits/hubert_base.pt"
+    content_vec_path: "models/sovits/content_vec.pth"
+
+generation:
+  default_clips: 3
+  max_clips: 10
+  temperature: 1.0
+  top_p: 0.95
+  guidance_scale: 7.5
+
+lora:
+  enabled: false
+  path: null
+  alpha: 1.0
+  rank: 16
+
+output:
+  directory: "output"
+  format: "wav"  # wav or mp3
+  export_stems: false
+  bitrate: 320  # for MP3
+
+training:
+  batch_size: 4
+  learning_rate: 0.0001
+  num_epochs: 10
+  gradient_accumulation_steps: 4
+  save_steps: 100
+  logging_steps: 10

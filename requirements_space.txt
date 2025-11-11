@@ -1,0 +1,28 @@
+# LEMM Requirements for HuggingFace Space
+# Python 3.10 required
+
+# ZeroGPU Support (for H200/A100 spaces)
+spaces
+
+# Core AI/ML
+torch==2.5.1
+torchaudio==2.5.1
+torchvision==0.20.1
+
+# ACE-Step (install from GitHub)
+git+https://github.com/ACE-Step/ACE-Step.git
+
+# Audio Processing
+demucs==4.0.1
+pedalboard==0.9.19
+pydub
+librosa==0.11.0
+soundfile==0.13.1
+
+# UI
+gradio==5.49.1
+
+# Utilities
+numpy
+pyyaml
+loguru

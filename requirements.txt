@@ -1,0 +1,55 @@
+# LEMM - Let Everyone Make Music
+# Core Dependencies
+# Python 3.10-3.12 required for ACE-Step compatibility
+
+# Deep Learning & AI Models
+torch>=2.0.0
+torchaudio>=2.0.0
+transformers>=4.30.0
+diffusers>=0.20.0
+accelerate>=0.20.0
+peft>=0.4.0  # For LoRA training
+
+# ACE-Step Music Generation (install separately)
+# pip install git+https://github.com/ACE-Step/ACE-Step.git
+# Requires Python 3.10-3.12 due to spacy dependency
+
+# Audio Processing
+librosa>=0.10.0
+soundfile>=0.12.0
+pydub>=0.25.1
+pedalboard>=0.7.0
+audioread>=3.0.0
+
+# Stem Separation
+demucs>=4.0.0
+spleeter>=2.3.0
+
+# Music Generation Models (placeholders - actual implementations may vary)
+# Note: ACE-Step, SongComposer, MusicControlNet may require custom installations
+# These are placeholder dependencies for the architecture
+
+# Vocal Enhancement
+# so-vits-svc - may require custom installation from GitHub
+
+# UI
+gradio>=3.40.0
+
+# Utilities
+numpy>=1.24.0
+scipy>=1.10.0
+PyYAML>=6.0
+tqdm>=4.65.0
+matplotlib>=3.7.0
+
+# Audio Analysis
+aubio>=0.4.9
+essentia>=2.1b6
+
+# Configuration & Logging
+python-dotenv>=1.0.0
+loguru>=0.7.0
+
+# Optional: For API endpoints
+fastapi>=0.100.0
+uvicorn>=0.23.0
