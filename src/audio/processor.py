@@ -5,20 +5,39 @@ from typing import Dict, Any, List, Tuple, TYPE_CHECKING
 import numpy as np
 import torch
 from pathlib import Path
-from demucs.pretrained import get_model
-from demucs.apply import apply_model
+try:
+    from demucs.pretrained import get_model  # type: ignore
+    from demucs.apply import apply_model  # type: ignore
+    DEMUCS_AVAILABLE = True
+except ImportError:
+    DEMUCS_AVAILABLE = False
+    get_model = None  # type: ignore
+    apply_model = None  # type: ignore
 from loguru import logger
 
 # Import pedalboard with proper type checking
 try:
-    from pedalboard import (
+    from pedalboard import (  # type: ignore
         Pedalboard, Reverb, Compressor, HighpassFilter, LowpassFilter, 
         Gain, PeakFilter, LowShelfFilter, HighShelfFilter
     )
     PEDALBOARD_AVAILABLE = True
 except ImportError:
     PEDALBOARD_AVAILABLE = False
-    Pedalboard = None  # type: ignore
+    # Create mock classes for type checking
+    class MockPedalboard: 
+        def __call__(self, audio: np.ndarray, *args, **kwargs) -> np.ndarray:
+            # Return audio unchanged when pedalboard not available
+            return audio
+    Pedalboard = MockPedalboard  # type: ignore
+    Reverb = MockPedalboard  # type: ignore
+    Compressor = MockPedalboard  # type: ignore
+    HighpassFilter = MockPedalboard  # type: ignore
+    LowpassFilter = MockPedalboard  # type: ignore
+    Gain = MockPedalboard  # type: ignore
+    PeakFilter = MockPedalboard  # type: ignore
+    LowShelfFilter = MockPedalboard  # type: ignore
+    HighShelfFilter = MockPedalboard  # type: ignore
     logger.warning("Pedalboard not available - install with: pip install pedalboard")
 
 
@@ -46,48 +65,82 @@ class AudioProcessor:
     def load_models(self):
         """Load Demucs and so-vits-svc models"""
         try:
+            # Check device availability
+            import torch
+            if self.device == "cuda" and not torch.cuda.is_available():
+                logger.warning("CUDA requested but not available - falling back to CPU")
+                self.device = "cpu"
+            
             # Load Demucs
             logger.info(f"Loading Demucs model: {self.demucs_name}")
-            self.demucs_model = get_model(self.demucs_name)
-            self.demucs_model.to(self.device)
-            self.demucs_model.eval()
-            logger.info("Demucs model loaded successfully")
+            if DEMUCS_AVAILABLE and get_model:
+                self.demucs_model = get_model(self.demucs_name)
+                self.demucs_model.to(self.device)
+                self.demucs_model.eval()
+                logger.info(f"Demucs model loaded successfully on {self.device}")
+            else:
+                self.demucs_model = None
+                logger.warning("Demucs not available - stem separation will be skipped")
             
         except Exception as e:
             logger.error(f"Error loading models: {e}")
-            raise
+            logger.warning("Audio processor will skip stem separation")
+            # Don't raise - allow app to continue without stem separation
     
     def process_clip(self, clip: np.ndarray, has_vocals: bool = True) -> Dict[str, np.ndarray]:
         """
         Process audio clip: separate stems and enhance
         
         Args:
-            clip: Audio clip as numpy array
-            has_vocals: Whether the clip has vocals
+            clip: Audio clip as numpy array (may contain pre-mixed vocals or be instrumental)
+            has_vocals: Whether the clip has vocals embedded in it
             
         Returns:
             Dictionary of enhanced stems
         """
         try:
-            logger.info("Processing audio clip")
+            logger.info(f"Processing audio clip (has_vocals={has_vocals})")
             
             # Load models if not loaded
             if self.demucs_model is None:
                 self.load_models()
             
-            # Step 1: Stem separation
-            stems = self.separate_stems(clip)
-            
-            # Step 2: Enhance vocals if present
-            if has_vocals and 'vocals' in stems:
-                stems['vocals'] = self.enhance_vocals(stems['vocals'])
-            
-            # Step 3: Enhance non-vocal stems
-            for stem_name in stems:
-                if stem_name != 'vocals':
-                    stems[stem_name] = self.enhance_non_vocal(stems[stem_name], stem_name)
-            
-            return stems
+            # If models available, use stem separation
+            if self.demucs_model is not None:
+                # Step 1: Stem separation
+                stems = self.separate_stems(clip)
+                
+                # Validate stems aren't all silent
+                total_energy = sum(np.abs(stem).max() for stem in stems.values())
+                logger.info(f"Total stem energy after separation: {total_energy:.4f}")
+                
+                # Step 2: Enhance vocals if present
+                if has_vocals and 'vocals' in stems:
+                    stems['vocals'] = self.enhance_vocals(stems['vocals'])
+                
+                # Step 3: Enhance non-vocal stems
+                for stem_name in stems:
+                    if stem_name != 'vocals':
+                        stems[stem_name] = self.enhance_non_vocal(stems[stem_name], stem_name)
+                
+                # Validate enhanced stems
+                total_energy_after = sum(np.abs(stem).max() for stem in stems.values())
+                logger.info(f"Total stem energy after enhancement: {total_energy_after:.4f}")
+                
+                return stems
+            else:
+                # Demucs not available - return the clip as-is without separation
+                # Since vocals are pre-mixed into the audio by MusicGen, keep them there
+                logger.warning("Demucs model not available - returning mixed audio without stem separation")
+                logger.info("Vocals and instruments will remain mixed together in 'other' stem")
+                
+                # Return all audio in 'other' stem to preserve vocals+instrumental mix
+                return {
+                    'vocals': np.zeros_like(clip),  # Empty - vocals are in the mixed audio
+                    'bass': np.zeros_like(clip),
+                    'drums': np.zeros_like(clip),
+                    'other': clip  # Keep entire mixed audio (vocals + instrumental)
+                }
             
         except Exception as e:
             logger.error(f"Error processing clip: {e}")
@@ -206,8 +259,12 @@ class AudioProcessor:
                 Gain(gain_db=2)  # type: ignore
             ])
             
-            enhanced = board(vocal_stem, self.sample_rate)
-            enhanced = np.clip(enhanced, -1.0, 1.0)
+            if PEDALBOARD_AVAILABLE:
+                enhanced = board(vocal_stem, self.sample_rate)
+                enhanced = np.clip(enhanced, -1.0, 1.0)
+            else:
+                logger.warning("Pedalboard not available - returning original vocal stem")
+                enhanced = vocal_stem
             
             logger.info("Vocal enhancement complete")
             return enhanced
@@ -264,9 +321,13 @@ class AudioProcessor:
             ])
             
             # Apply effects
-            enhanced = board(audio, self.sample_rate)
-            logger.info("Bass enhancement complete")
-            return enhanced
+            if PEDALBOARD_AVAILABLE:
+                enhanced: np.ndarray = board(audio, self.sample_rate)
+                logger.info("Bass enhancement complete")
+                return enhanced
+            else:
+                logger.warning("Pedalboard not available - returning original audio")
+                return audio
             
         except Exception as e:
             logger.warning(f"Pedalboard bass enhancement failed: {e}, using fallback")
@@ -287,9 +348,13 @@ class AudioProcessor:
             ])
             
             # Apply effects
-            enhanced = board(audio, self.sample_rate)
-            logger.info("Drum enhancement complete")
-            return enhanced
+            if PEDALBOARD_AVAILABLE:
+                enhanced: np.ndarray = board(audio, self.sample_rate)
+                logger.info("Drum enhancement complete")
+                return enhanced
+            else:
+                logger.warning("Pedalboard not available - returning original audio")
+                return audio
             
         except Exception as e:
             logger.warning(f"Pedalboard drum enhancement failed: {e}, using fallback")
@@ -310,9 +375,13 @@ class AudioProcessor:
             ])
             
             # Apply effects
-            enhanced = board(audio, self.sample_rate)
-            logger.info("General enhancement complete")
-            return enhanced
+            if PEDALBOARD_AVAILABLE:
+                enhanced: np.ndarray = board(audio, self.sample_rate)
+                logger.info("General enhancement complete")
+                return enhanced
+            else:
+                logger.warning("Pedalboard not available - returning original audio")
+                return audio
             
         except Exception as e:
             logger.warning(f"Pedalboard general enhancement failed: {e}, using fallback")

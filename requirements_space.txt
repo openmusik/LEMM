@@ -4,25 +4,44 @@
 # ZeroGPU Support (for H200/A100 spaces)
 spaces
 
-# Core AI/ML
-torch==2.5.1
-torchaudio==2.5.1
-torchvision==0.20.1
+# Core AI/ML - Compatible versions for HF Spaces
+torch>=2.0.0
+torchaudio>=2.0.0
+torchvision>=0.15.0
 
-# ACE-Step (install from GitHub)
+# ACE-Step (install from GitHub FIRST, then override its dependencies)
 git+https://github.com/ACE-Step/ACE-Step.git
+
+# Transformers ecosystem - PINNED EXACT VERSIONS for compatibility
+# CRITICAL: Install AFTER ACE-Step with --force-reinstall to override
+# peft requires transformers.modeling_layers (added in transformers 4.46+)
+--force-reinstall
+transformers==4.47.1
+diffusers==0.32.1
+peft==0.14.0
+accelerate==1.2.1
 
 # Audio Processing
 demucs==4.0.1
 pedalboard==0.9.19
-pydub
+pydub>=0.25.1
 librosa==0.11.0
 soundfile==0.13.1
+audioread>=3.0.0
+scipy>=1.11.0
 
 # UI
 gradio==5.49.1
 
+# Dataset Management
+huggingface_hub>=0.20.0
+datasets>=2.16.0
+requests>=2.31.0
+tqdm>=4.66.0
+
 # Utilities
-numpy
-pyyaml
-loguru
+numpy>=1.24.0
+pyyaml>=6.0
+loguru>=0.7.0
+matplotlib>=3.7.0
+python-dotenv>=1.0.0

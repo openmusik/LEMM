@@ -1,55 +1,44 @@
-# LEMM - Let Everyone Make Music
-# Core Dependencies
-# Python 3.10-3.12 required for ACE-Step compatibility
+# LEMM Requirements for HuggingFace Space
+# Python 3.10+ required for ACE-Step compatibility
+# See .python-version and runtime.txt for Python version specification
 
-# Deep Learning & AI Models
-torch>=2.0.0
-torchaudio>=2.0.0
-transformers>=4.30.0
-diffusers>=0.20.0
-accelerate>=0.20.0
-peft>=0.4.0  # For LoRA training
+# ZeroGPU Support (for H200/A100 spaces)
+spaces
 
-# ACE-Step Music Generation (install separately)
-# pip install git+https://github.com/ACE-Step/ACE-Step.git
-# Requires Python 3.10-3.12 due to spacy dependency
+# Core AI/ML - Specific versions for reproducibility
+torch==2.5.1
+torchaudio==2.5.1
+torchvision==0.20.1
+
+# Transformers ecosystem - Versions compatible with ACE-Step
+# ACE-Step requires transformers==4.50.0, diffusers>=0.33.0
+transformers==4.50.0
+diffusers==0.35.2
+peft==0.17.1
+accelerate==1.6.0
+
+# ACE-Step Music Generation (from GitHub)
+# Installed after core dependencies to use pinned versions above
+git+https://github.com/ACE-Step/ACE-Step.git
 
 # Audio Processing
-librosa>=0.10.0
-soundfile>=0.12.0
+demucs==4.0.1
+pedalboard==0.9.19
 pydub>=0.25.1
-pedalboard>=0.7.0
+librosa==0.11.0
+soundfile==0.13.1
 audioread>=3.0.0
 
-# Stem Separation
-demucs>=4.0.0
-spleeter>=2.3.0
+# UI - Match with sdk_version in README
+gradio==5.49.1
 
-# Music Generation Models (placeholders - actual implementations may vary)
-# Note: ACE-Step, SongComposer, MusicControlNet may require custom installations
-# These are placeholder dependencies for the architecture
-
-# Vocal Enhancement
-# so-vits-svc - may require custom installation from GitHub
-
-# UI
-gradio>=3.40.0
+# Dataset Management
+huggingface_hub>=0.20.0
+datasets>=2.16.0
+requests>=2.31.0
+tqdm>=4.66.0
 
 # Utilities
 numpy>=1.24.0
-scipy>=1.10.0
-PyYAML>=6.0
-tqdm>=4.65.0
-matplotlib>=3.7.0
-
-# Audio Analysis
-aubio>=0.4.9
-essentia>=2.1b6
-
-# Configuration & Logging
-python-dotenv>=1.0.0
+pyyaml>=6.0
 loguru>=0.7.0
-
-# Optional: For API endpoints
-fastapi>=0.100.0
-uvicorn>=0.23.0

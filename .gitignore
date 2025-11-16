@@ -1,82 +1,74 @@
-# --- Core project files ---
-*.bak
-*.tmp
-*.log
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
 
-# --- OS ---
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
 .DS_Store
 Thumbs.db
-ehthumbs.db
-Icon?
-Desktop.ini
 
-# --- DAW / Audio ---
-# Common audio render formats
+# LEMM Specific
+models/checkpoints/
+models/weights/
+models/cache/
+output/
+temp/
 *.wav
-*.aiff
-*.aif
-*.flac
 *.mp3
+*.flac
 *.ogg
 *.m4a
-
-# Project backup folders and autosaves
-Backup/
-backups/
-autosave/
-autosaves/
-crashlogs/
-crash-reports/
-
-# --- Plugins / DAW-specific ---
-# FL Studio, Ableton, Logic, Reaper, etc.
-*.als
-*.flp
-*.logic
-*.rpp-bak
-*.bak
-*.tmp
-*.asd
-*.cfg
-*.config
-*.db
-*.cache
-
-# --- Rendered or Exported Content ---
-renders/
-exports/
-bounces/
-mixdowns/
-output/
-output_temp/
-print/
-stems/
-mixes/
-
-# --- Virtual Instruments / Libraries ---
-samples/
-Sample Libraries/
-Libraries/
-Kontakt Libraries/
-Presets/
-presets/
-*.nki
-*.nkm
-*.nkx
-*.nks
-*.wavpack
-
-# --- Version control sanity ---
-.env
-*.zip
-*.tar
-*.gz
-*.7z
-*.rar
-
-# --- LEMM / Audio Tools Specific ---
-models/
-weights/
-temp/
 logs/
+*.log
 
+# Environment variables
+.env
+.env.local
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Model files (too large for git)
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.bin
+
+# Data
+data/raw/
+data/processed/
+data/interim/
+
+# Exceptions (if you want to commit specific small models)
+!models/.gitkeep

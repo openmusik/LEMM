@@ -19,7 +19,7 @@ models:
   ace_step:
     # ACE-Step model configuration
     path: "models/ACE-Step-HF"  # Local model path
-    device: "cuda"  # or "cpu"
+    device: "auto"  # "auto" for detection, "cuda", or "cpu"
     device_id: 0  # GPU device ID
     bf16: true  # Use bfloat16 for faster inference (requires CUDA)
     torch_compile: false  # Use torch.compile() for optimization (slower startup)
@@ -53,6 +53,15 @@ models:
     config_path: "models/sovits/config.json"  # Will be created
     hubert_path: "models/sovits/hubert_base.pt"
     content_vec_path: "models/sovits/content_vec.pth"
+  
+  vocal_synthesis:
+    # Text-to-Singing synthesis for MusicGen vocals
+    backend: "auto"  # "auto", "piper", "bark", "placeholder"
+    device: "auto"  # "auto", "cuda", "cpu"
+    sample_rate: 44100
+    preload_models: false  # For Bark - preload for faster synthesis
+    max_chars: 2000  # Maximum characters to synthesize
+    voice_preset: "v2/en_speaker_6"  # Bark voice preset (if using Bark)
 
 generation:
   default_clips: 3
@@ -80,3 +89,23 @@ training:
   gradient_accumulation_steps: 4
   save_steps: 100
   logging_steps: 10
+
+datasets:
+  # Automatic dataset downloading for HuggingFace Spaces
+  auto_download: true  # Automatically download datasets on Space startup
+  phase: "minimal"  # "minimal" (54GB), "balanced" (120GB), or "comprehensive" (227GB)
+  cache_dir: "datasets"  # Local cache directory
+  use_hf_cache: true  # Use HuggingFace's cache system (recommended for Spaces)
+  max_storage_gb: 150  # Maximum storage to use for datasets
+  
+  # Dataset priorities (1-5, higher = download first)
+  priorities:
+    nsynth: 5  # Essential for music synthesis
+    ljspeech: 5  # Essential for vocal synthesis
+    urmp: 4  # Multi-instrument coordination
+    fma_small: 4  # Genre diversity
+    libritts: 3  # Multi-speaker vocals
+    musicnet: 3  # Classical notation
+    fma_large: 2  # Extended genre coverage
+    lakh_midi: 3  # Symbolic music
+

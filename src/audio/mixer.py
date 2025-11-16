@@ -39,10 +39,15 @@ class AudioMixer:
             mixed_clips = []
             for i, clip_stems in enumerate(clips):
                 mixed = self.mix_stems(clip_stems)
+                clip_max = np.abs(mixed).max()
+                logger.info(f"Clip {i+1} mixed - peak: {clip_max:.4f}")
                 mixed_clips.append(mixed)
             
             # Chain clips with crossfading
             chained = self._chain_with_crossfade(mixed_clips)
+            chained_max = np.abs(chained).max()
+            chained_rms = np.sqrt(np.mean(chained**2))
+            logger.info(f"Chained audio - peak: {chained_max:.4f}, RMS: {chained_rms:.4f}")
             
             # Apply final mastering
             final = self.master(chained)
@@ -58,40 +63,55 @@ class AudioMixer:
         Mix all stems into a single audio clip
         
         Args:
-            stems: Dictionary of audio stems
+            stems: Dictionary of audio stems (vocals, bass, drums, other)
             
         Returns:
             Mixed audio
         """
         try:
-            logger.info("Mixing stems")
+            logger.info(f"Mixing stems: {list(stems.keys())}")
             
-            # TODO: Implement advanced mixing with Pydub/Librosa
-            # - Level balancing
-            # - Panning
-            # - Effects
+            # Get reference shape from any stem
+            reference_stem = list(stems.values())[0]
+            mixed = np.zeros_like(reference_stem, dtype=np.float32)
             
-            # Placeholder: simple addition
-            mixed = np.zeros_like(list(stems.values())[0])
+            # Apply stem-specific volume levels for balanced mix
+            stem_volumes = {
+                'vocals': 1.0,    # Vocals at full volume (most important)
+                'drums': 0.85,    # Drums slightly lower
+                'bass': 0.80,     # Bass balanced
+                'other': 0.75     # Other instruments lower to not compete
+            }
             
             for stem_name, stem_audio in stems.items():
-                # Apply stem-specific volume levels
-                if stem_name == 'vocals':
-                    stem_audio = stem_audio * 0.9
-                elif stem_name == 'drums':
-                    stem_audio = stem_audio * 0.8
-                elif stem_name == 'bass':
-                    stem_audio = stem_audio * 0.7
-                else:
-                    stem_audio = stem_audio * 0.6
+                # Get volume for this stem (default to 0.6 if not specified)
+                volume = stem_volumes.get(stem_name, 0.6)
                 
-                mixed += stem_audio
+                # Skip empty stems (all zeros)
+                stem_max = np.abs(stem_audio).max()
+                if stem_max < 1e-6:
+                    logger.debug(f"Skipping empty stem: {stem_name}")
+                    continue
+                
+                logger.info(f"Adding stem '{stem_name}' at {volume*100:.0f}% volume (peak: {stem_max:.4f})")
+                mixed += stem_audio * volume
             
-            # Normalize to prevent clipping
-            max_val = np.abs(mixed).max()
-            if max_val > 0:
-                mixed = mixed / max_val * 0.95
+            # Log mixed levels before normalization
+            mixed_max = np.abs(mixed).max()
+            mixed_rms = np.sqrt(np.mean(mixed**2))
+            logger.info(f"Mixed audio - peak: {mixed_max:.4f}, RMS: {mixed_rms:.4f}")
             
+            # Normalize to prevent clipping while maintaining dynamics
+            if mixed_max > 0:
+                # Use softer normalization to preserve dynamics
+                if mixed_max > 0.95:
+                    # Only normalize if we're close to clipping
+                    mixed = mixed / mixed_max * 0.95
+                    logger.info(f"Normalized mixed audio (peak was {mixed_max:.3f})")
+            else:
+                logger.warning(f"⚠️ Mixed audio is silent!")
+            
+            logger.info("✅ Stems mixed successfully")
             return mixed
             
         except Exception as e:
@@ -100,16 +120,17 @@ class AudioMixer:
     
     def _chain_with_crossfade(self, clips: List[np.ndarray]) -> np.ndarray:
         """
-        Chain clips with crossfading
+        Chain clips with crossfading and smooth ending
         
         Args:
             clips: List of audio clips
             
         Returns:
-            Chained audio
+            Chained audio with smooth fade-out at the end
         """
         if len(clips) == 1:
-            return clips[0]
+            # Single clip - add fade-out at the end
+            return self._add_final_fadeout(clips[0])
         
         try:
             logger.info("Chaining clips with crossfade")
@@ -127,8 +148,30 @@ class AudioMixer:
                     # First clip: no crossfade at start
                     result[current_pos:current_pos + len(clip)] = clip
                     current_pos += len(clip) - crossfade_samples
+                elif i == len(clips) - 1:
+                    # Last clip: crossfade with previous, then apply fade-out
+                    fade_in = np.linspace(0, 1, crossfade_samples)
+                    fade_out = np.linspace(1, 0, crossfade_samples)
+                    
+                    # Crossfade region
+                    overlap_start = current_pos
+                    overlap_end = current_pos + crossfade_samples
+                    
+                    # Apply crossfade
+                    result[overlap_start:overlap_end] *= fade_out
+                    result[overlap_start:overlap_end] += clip[:crossfade_samples] * fade_in
+                    
+                    # Add rest of clip with fade-out at the very end
+                    remaining_start = current_pos + crossfade_samples
+                    remaining_clip = clip[crossfade_samples:]
+                    
+                    # Apply fade-out to the last 2 seconds of the final clip
+                    remaining_clip = self._add_final_fadeout(remaining_clip)
+                    
+                    result[remaining_start:remaining_start + len(remaining_clip)] = remaining_clip
+                    current_pos += len(clip)
                 else:
-                    # Subsequent clips: crossfade with previous
+                    # Middle clips: crossfade with previous
                     fade_in = np.linspace(0, 1, crossfade_samples)
                     fade_out = np.linspace(1, 0, crossfade_samples)
                     
@@ -145,17 +188,43 @@ class AudioMixer:
                     result[remaining_start:remaining_start + len(clip) - crossfade_samples] = \
                         clip[crossfade_samples:]
                     
-                    if i < len(clips) - 1:
-                        current_pos += len(clip) - crossfade_samples
-                    else:
-                        current_pos += len(clip)
+                    current_pos += len(clip) - crossfade_samples
             
-            logger.info("Crossfade complete")
+            logger.info("Crossfade complete with smooth ending")
             return result
             
         except Exception as e:
             logger.error(f"Error in crossfade: {e}")
             raise
+    
+    def _add_final_fadeout(self, audio: np.ndarray) -> np.ndarray:
+        """
+        Add smooth fade-out to the end of audio clip
+        
+        Args:
+            audio: Input audio
+            
+        Returns:
+            Audio with fade-out applied to last 2 seconds
+        """
+        fadeout_duration = self.crossfade_duration  # Use same duration as crossfade (2 seconds)
+        fadeout_samples = int(fadeout_duration * self.sample_rate)
+        
+        # Only fade if audio is longer than fade duration
+        if len(audio) <= fadeout_samples:
+            # Fade entire clip
+            fade_curve = np.linspace(1, 0, len(audio))
+            return audio * fade_curve
+        
+        # Create a copy to avoid modifying original
+        faded_audio = audio.copy()
+        
+        # Apply exponential fade-out to last portion (smoother than linear)
+        fade_start = len(faded_audio) - fadeout_samples
+        fade_curve = np.power(np.linspace(1, 0, fadeout_samples), 1.5)  # Exponential curve
+        faded_audio[fade_start:] *= fade_curve
+        
+        return faded_audio
     
     def master(self, audio: np.ndarray) -> np.ndarray:
         """
@@ -170,24 +239,40 @@ class AudioMixer:
         try:
             logger.info("Applying final mastering")
             
+            # Log input levels
+            input_max = np.abs(audio).max()
+            input_rms = np.sqrt(np.mean(audio**2))
+            logger.info(f"   Input peak: {input_max:.4f}, RMS: {input_rms:.4f}")
+            
             # TODO: Implement advanced mastering
             # - EQ
             # - Compression
             # - Limiting
             # - Stereo enhancement
             
-            # Placeholder: normalize and apply soft limiter
             mastered = audio.copy()
             
-            # Normalize
+            # Normalize to 0.9 to leave headroom
             max_val = np.abs(mastered).max()
             if max_val > 0:
-                mastered = mastered / max_val
+                mastered = mastered / max_val * 0.9
+                logger.info(f"   Normalized: peak {max_val:.4f} -> 0.9")
+            else:
+                logger.warning("   ⚠️ Mastering received silent audio!")
             
-            # Soft limiting (simple tanh)
-            mastered = np.tanh(mastered * 0.95) * 0.99
+            # Apply gentle limiting only to peaks above 0.9
+            peaks = np.abs(mastered) > 0.9
+            if np.any(peaks):
+                # Soft clip peaks using tanh only on the overage
+                mastered[peaks] = np.sign(mastered[peaks]) * (0.9 + 0.1 * np.tanh((np.abs(mastered[peaks]) - 0.9) * 10))
+                logger.info("   Applied soft limiting to peaks")
             
+            # Final check
+            output_max = np.abs(mastered).max()
+            output_rms = np.sqrt(np.mean(mastered**2))
+            logger.info(f"   Output peak: {output_max:.4f}, RMS: {output_rms:.4f}")
             logger.info("Mastering complete")
+            
             return mastered
             
         except Exception as e:
